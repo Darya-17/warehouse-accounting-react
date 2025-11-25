@@ -84,7 +84,7 @@ export const OrdersPage: React.FC = () => {
                     onChange={e => setStatusFilter(e.target.value as StatusEnum | "")}
                 >
                     <option value="">Все статусы</option>
-                    <option value={StatusEnum.DRAFT}>Черновик</option>
+                    <option value={StatusEnum.DRAFT}>В работе</option>
                     <option value={StatusEnum.PROCESSED}>Обработан</option>
                     <option value={StatusEnum.CANCELLED}>Отменен</option>
                 </select>
@@ -103,7 +103,6 @@ export const OrdersPage: React.FC = () => {
                             key={order.id}
                             order={order}
                             onStatusChange={handleStatusChange}
-                            onEdit={id => openModal(order.service, id)}
                         />
                     ))}
                 </div>
@@ -111,7 +110,6 @@ export const OrdersPage: React.FC = () => {
 
             {modalOpen && (
                 <OrderModal
-
                     orderId={editingOrderId ?? undefined}
                     service={creatingService}
                     onClose={() => setModalOpen(false)}

@@ -1,5 +1,7 @@
+
+
 import axios from "axios";
-import {InventoryItem, type Order, type Product, PurchaseItem, StatusEnum, type Warehouse} from "./types.ts";
+import {StatusEnum} from "./types.ts";
 
 const api = axios.create({
     baseURL: "http://localhost:8000",
@@ -9,31 +11,123 @@ const api = axios.create({
 });
 
 
-export const getProducts = () => api.get<Product[]>("/products");
-export const getProductById = (id: number) => api.get<Product>(`/products/${id}`);
-export const createProduct = (data: Partial<Product>) => api.post<Product>("/products", data);
-export const updateProduct = (id: number, data: Partial<Product>) =>
-    api.put<Product>(`/products/${id}`, data);
-export const deleteProduct = (id: number) => api.delete(`/products/${id}`);
+export const getAllProducts = () => {
+    return api.get("/products/");
+};
+
+export const createProduct = (data: {
+    brand: string;
+    model: string;
+    price?: number;
+    note?: string;
+}) => {
+    return api.post("/products/", data);
+};
+
+export const updateProduct = (id: number, data: Partial<{
+    brand: string;
+    model: string;
+    price: number;
+    note: string;
+}>) => {
+    return api.patch(`/products/${id}`, data);
+};
 
 
-export const getOrders = () => api.get<Order[]>("/orders");
-export const getOrderById = (id: number) => api.get<Order>(`/orders/${id}`);
-export const createOrder = (data: Partial<Order>) => api.post<Order>("/orders", data);
-export const updateOrder = (id: number, data: Partial<Order>) => api.patch<Order>(`/orders/${id}`, data);
-export const deleteOrder = (id: number) => api.delete(`/orders/${id}`);
+export const createTire = (data: {
+    product_id: number;
+    width?: string | null;
+    profile?: string | null;
+    diameter?: string | null;
+    index?: string | null;
+    spikes?: string | null;
+    year?: number;
+    country?: string | null;
+    season?: "winter" | "summer";
+}) => {
+    return api.post("/tires/", data);
+};
+
+export const updateTire = (id: number, data: Partial<{
+    width?: string;
+    profile?: string;
+    diameter?: string;
+    index?: string;
+    spikes?: string;
+    year?: number;
+    country?: string;
+    season?: "winter" | "summer";
+}>) => {
+    return api.patch(`/tires/${id}`, data);
+};
 
 
-export const getWarehouse = () => api.get<Warehouse[]>("/warehouse");
-export const getStorage = () => api.get<Storage[]>("/storage");
+export const createComponent = (data: {
+    product_id: number;
+    category: string;
+    parameters?: string;
+    compatibility?: string;
+    weight: number;
+    material: string;
+    color?: string | null;
+}) => {
+    return api.post("/components/", data);
+};
+
+export const updateComponent = (id: number, data: Partial<{
+    category: string;
+    parameters?: string;
+    compatibility?: string;
+    weight: number;
+    material: string;
+    color?: string | null;
+}>) => {
+    return api.put(`/components/${id}`, data);
+};
+
+export const updateWarehouseItem = (
+    id: number,
+    data: {
+        quantity?: number;
+        rack?: string;
+        shelf?: string;
+        cell?: string;
+        product_id?: number;
+    }
+) => {
+    return api.patch(`/warehouse/${id}`, data);
+};
 
 
+export const addProductToWarehouse = (productId: number, quantity: number) => {
+    return api.post("/warehouse/", {
+        product_id: productId,
+        rack: "Закупка",
+        shelf: "Новая",
+        cell: "0",
+        quantity,
+    });
+};
 export const changeOrderStatus = (id: number, status: StatusEnum) =>
     updateOrder(id, {
         status
     });
 
-export const addProductToWarehouse = (productId: number, quantity: number) =>
-    api.post<Warehouse>("/warehouse", {product_id: productId, quantity});
-export const getAllProducts = () => api.get<PurchaseItem[]>("/all_products");
-export const getInventory = () => api.get<InventoryItem[]>("/inventory");
+
+export const createOrder = (data: any) => api.post("/orders/", data);
+export const updateOrder = (id: number, data: any) => api.patch(`/orders/${id}`, data);
+export const getOrders = () => api.get("/orders/");
+
+
+export const getInventory = () => api.get("/inventory/");
+
+
+api.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        console.error("API Error:", error.response?.data || error.message);
+        return Promise.reject(error);
+    }
+);
+
+export default api;

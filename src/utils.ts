@@ -51,8 +51,9 @@ export const useInventory = () => {
 
     const getQuantity = (productId: number, locationType?: "warehouse" | "storage") => {
         const items = inventory.filter(i => i.product.id === productId);
-        if (locationType) return items.filter(i => i.location_type === locationType).reduce((sum, i) => sum + i.quantity, 0);
-        return items.reduce((sum, i) => sum + i.quantity, 0);
+        if (locationType == 'warehouse')
+            return items.filter(i => i.location_type === locationType).reduce((sum, i) => sum + i.quantity, 0);
+        return undefined;
     };
 
     return {inventory, loading, fetchInventory, getQuantity};
@@ -76,3 +77,15 @@ export const getStatusLabel = (status: StatusEnum) => {
 
     }
 }
+export const getStatusColor = (status: StatusEnum): string => {
+    switch (status) {
+        case StatusEnum.DRAFT:
+            return "warning";
+        case StatusEnum.PROCESSED:
+            return "success";
+        case StatusEnum.CANCELLED:
+            return "danger";
+        default:
+            return "secondary";
+    }
+};
