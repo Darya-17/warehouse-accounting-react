@@ -35,7 +35,7 @@ export const PurchaseRow = ({row, updateRow, deleteRow, season}: Props) => {
             <td><Form.Control value={row.brand} onChange={handleChange("brand")}/></td>
             <td><Form.Control value={row.model} onChange={handleChange("model")}/></td>
 
-            {
+
             <td>{isTire ? <Form.Control value={row.width} onChange={handleChange("width")}/> : dash}</td>
             <td>{isTire ? <Form.Control value={row.profile} onChange={handleChange("profile")}/> : dash}</td>
             <td>{isTire ? <Form.Control value={row.diameter} onChange={handleChange("diameter")}/> : dash}</td>
@@ -44,7 +44,7 @@ export const PurchaseRow = ({row, updateRow, deleteRow, season}: Props) => {
             <td>{isTire ? <Form.Control type="number" value={row.year} onChange={handleChange("year")}/> : dash}</td>
             <td>{isTire ? <Form.Control value={row.country} onChange={handleChange("country")}/> : dash}</td>
 
-            {
+
             <td>{!isTire ? <Form.Control value={row.category} onChange={handleChange("category")}/> : dash}</td>
             <td>{!isTire ?
                 <Form.Control value={row.compatibility} onChange={handleChange("compatibility")}/> : dash}</td>
@@ -53,7 +53,6 @@ export const PurchaseRow = ({row, updateRow, deleteRow, season}: Props) => {
             <td>{!isTire ? <Form.Control value={row.material} onChange={handleChange("material")}/> : dash}</td>
             <td>{!isTire ? <Form.Control value={row.color} onChange={handleChange("color")}/> : dash}</td>
 
-            {
             <td><Form.Control type="number" min={0} value={row.price} onChange={handleChange("price")} placeholder="0"/>
             </td>
             <td><Form.Control type="number" min={1} value={row.quantity} onChange={handleChange("quantity")}/></td>

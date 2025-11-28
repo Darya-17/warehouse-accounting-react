@@ -1,7 +1,6 @@
-
-import React, { useState } from "react";
-import { Order, StatusEnum } from "../types.ts";
-import { getStatusLabel, getStatusColor } from "../utils.ts";
+import React, {useState} from "react";
+import {Order, StatusEnum} from "../types.ts";
+import {getStatusLabel, getStatusColor} from "../utils.ts";
 import {Table} from "react-bootstrap";
 
 interface OrderCardProps {
@@ -30,7 +29,7 @@ const ConfirmActionModal: React.FC<{
     if (!show) return null;
 
     return (
-        <div className="modal fade show" style={{ display: "block", backgroundColor: "rgba(0,0,0,0.5)" }} tabIndex={-1}>
+        <div className="modal fade show" style={{display: "block", backgroundColor: "rgba(0,0,0,0.5)"}} tabIndex={-1}>
             <div className="modal-dialog modal-dialog-centered">
                 <div className="modal-content">
                     <div className="modal-header">
@@ -54,7 +53,7 @@ const ConfirmActionModal: React.FC<{
     );
 };
 
-export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) => {
+export const OrderCard: React.FC<OrderCardProps> = ({order, onStatusChange}) => {
     const [isOpen, setIsOpen] = useState(false);
     const [showConfirm, setShowConfirm] = useState(false);
     const [pendingStatus, setPendingStatus] = useState<StatusEnum | null>(null);
@@ -86,24 +85,24 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
 
             if (currentStatus === StatusEnum.DRAFT) {
                 return {
-                    main: { label: "Выдать клиенту", status: StatusEnum.PROCESSED, variant: "success" },
-                    cancel: { label: "Отменить хранение", status: StatusEnum.CANCELLED, variant: "danger" },
+                    main: {label: "Выдать клиенту", status: StatusEnum.PROCESSED, variant: "success"},
+                    cancel: {label: "Отменить хранение", status: StatusEnum.CANCELLED, variant: "danger"},
                 };
             } else {
                 return {
-                    main: { label: "Принять на хранение", status: StatusEnum.DRAFT, variant: "primary" },
+                    main: {label: "Принять на хранение", status: StatusEnum.DRAFT, variant: "primary"},
                 };
             }
         } else {
 
             if (currentStatus === StatusEnum.DRAFT) {
                 return {
-                    main: { label: "Обработать заказ", status: StatusEnum.PROCESSED, variant: "success" },
-                    cancel: { label: "Отменить", status: StatusEnum.CANCELLED, variant: "danger" },
+                    main: {label: "Обработать заказ", status: StatusEnum.PROCESSED, variant: "success"},
+                    cancel: {label: "Отменить", status: StatusEnum.CANCELLED, variant: "danger"},
                 };
             } else if (currentStatus === StatusEnum.PROCESSED || currentStatus === StatusEnum.CANCELLED) {
                 return {
-                    cancel: { label: "Вернуть в работу", status: StatusEnum.DRAFT, variant: "warning" },
+                    cancel: {label: "Вернуть в работу", status: StatusEnum.DRAFT, variant: "warning"},
                 };
             }
         }
@@ -120,24 +119,25 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
                         className={`accordion-button ${isOpen ? "" : "collapsed"} fw-medium`}
                         type="button"
                         onClick={() => setIsOpen(!isOpen)}
-                        style={{ fontSize: "1.05rem" }}
+                        style={{fontSize: "1.05rem"}}
                     >
             <span className="me-3">
               {isStorage ? "Хранение" : "Заказ"} #{order.id}
             </span>
                         <span className="text-muted">— {order.customer_name || "Без имени"}</span>
-                        <span className={`badge bg-${getStatusColor(currentStatus)} ms-auto`}>
+                        <span className="text-muted">{order.customer_phone}</span>
+                        <span className={`badge text-dark bg-${getStatusColor(currentStatus)} ms-auto`}>
               {getStatusLabel(currentStatus)}
             </span>
+
                     </button>
                 </h2>
 
                 <div className={`accordion-collapse collapse ${isOpen ? "show" : ""}`}>
                     <div className="accordion-body">
-                        {
                         <div className="table-responsive mb-3">
                             <Table striped bordered hover variant="dark">
-                                <thead >
+                                <thead>
                                 <tr>
                                     <th>Бренд</th>
                                     <th>Модель</th>
@@ -157,8 +157,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
                                 </tbody>
                             </Table>
                         </div>
-
-                        {
                         <div className="d-flex flex-wrap gap-2">
                             {actions.main && (
                                 <button
@@ -190,8 +188,6 @@ export const OrderCard: React.FC<OrderCardProps> = ({ order, onStatusChange }) =
                     </div>
                 </div>
             </div>
-
-            {
             {showConfirm && pendingStatus && (
                 <ConfirmActionModal
                     show={showConfirm}

@@ -82,7 +82,7 @@ export const updateComponent = (id: number, data: Partial<{
     material: string;
     color?: string | null;
 }>) => {
-    return api.put(`/components/${id}`, data);
+    return api.patch(`/components/${id}`, data);
 };
 
 export const updateWarehouseItem = (
@@ -96,6 +96,18 @@ export const updateWarehouseItem = (
     }
 ) => {
     return api.patch(`/warehouse/${id}`, data);
+};
+export const updateStorageItem = (
+    id: number,
+    data: {
+        quantity?: number;
+        rack?: string;
+        shelf?: string;
+        cell?: string;
+        product_id?: number;
+    }
+) => {
+    return api.patch(`/storage/${id}`, data);
 };
 
 

@@ -1,10 +1,51 @@
-import React, {useState, useMemo} from "react";
-import {Modal, Button, Table, Form, Row, Col} from "react-bootstrap";
-import {InventoryItem, CategoryEnum} from "../types";
-import jsPDF from "jspdf";
-import "jspdf-autotable";
+// src/components/InventoryModal.tsx
+
+import React, { useState, useMemo } from "react";
+import {
+    Modal,
+    Button,
+    Table,
+    Form,
+    Row,
+    Col,
+    Alert,
+    Spinner,
+} from "react-bootstrap";
+import { InventoryItem } from "../types";
 import autoTable from "jspdf-autotable";
-import {getPdfDoc, loadFontBinary} from "../utils.ts";
+import { getPdfDoc } from "../utils.ts";
+import * as api from "../apiService.ts";
+
+// Модалка подтверждения
+const ConfirmInventoryModal: React.FC<{
+    show: boolean;
+    changesCount: number;
+    onConfirm: () => void;
+    onCancel: () => void;
+}> = ({ show, changesCount, onConfirm, onCancel }) => (
+    <Modal show={show} onHide={onCancel} centered backdrop="static">
+        <Modal.Header closeButton>
+            <Modal.Title>Подтверждение инвентаризации</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+            {changesCount === 0 ? (
+                <p>Ничего не изменилось. Сформировать отчёт?</p>
+            ) : (
+                <p>
+                    Будет обновлено <strong>{changesCount}</strong> позиций на складе.
+                    <br />
+                    Это действие нельзя отменить.
+                </p>
+            )}
+        </Modal.Body>
+        <Modal.Footer>
+            <Button variant="secondary" onClick={onCancel}>Отмена</Button>
+            <Button variant="success" onClick={onConfirm}>
+                {changesCount === 0 ? "Сформировать отчёт" : "Сохранить и скачать отчёт"}
+            </Button>
+        </Modal.Footer>
+    </Modal>
+);
 
 type InventoryModalProps = {
     show: boolean;
@@ -12,69 +53,134 @@ type InventoryModalProps = {
     items: InventoryItem[];
 };
 
-interface InventoryReportData {
-    empty: InventoryItem[];
-    match: InventoryItem[];
-    mismatch: InventoryItem[];
-}
-
-
-export const InventoryModal: React.FC<InventoryModalProps> = ({show, onHide, items}) => {
-    const [actualQuantities, setActualQuantities] = useState<Record<number, number | null>>({});
+export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, items }) => {
+    const [actualQuantities, setActualQuantities] = useState<Record<number, number>>({});
     const [locationFilter, setLocationFilter] = useState<"warehouse" | "storage" | "">("");
-    const [categoryFilter, setCategoryFilter] = useState<string>("");
+    const [saving, setSaving] = useState(false);
+    const [alert, setAlert] = useState<{ type: "success" | "danger"; message: string } | null>(null);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
+    const [pendingChangesCount, setPendingChangesCount] = useState(0);
 
     const handleChange = (id: number, value: string) => {
-        const val = value === "" ? null : parseInt(value, 10);
-        setActualQuantities(prev => ({...prev, [id]: val}));
+        const num = value === "" ? 0 : parseInt(value, 10);
+        setActualQuantities(prev => ({
+            ...prev,
+            [id]: isNaN(num) ? 0 : num
+        }));
     };
 
     const filteredItems = useMemo(() => {
         return items.filter(item => {
             if (locationFilter && item.location_type !== locationFilter) return false;
-            if (categoryFilter) {
-                const cat = item.component?.category ?? "";
-                if (cat !== categoryFilter) return false;
-            }
             return true;
         });
-    }, [items, locationFilter, categoryFilter]);
+    }, [items, locationFilter]);
 
-    const handleSave = () => {
-        const report = {empty: [], match: [], mismatch: []};
+    const handleSaveAndGenerate = () => {
+        const changes = filteredItems.filter(item => {
+            const actual = actualQuantities[item.id] ?? item.quantity;
+            return actual !== item.quantity;
+        });
+
+        setPendingChangesCount(changes.length);
+        setShowConfirmModal(true);
+    };
+
+    const confirmAndProceed = async () => {
+        setShowConfirmModal(false);
+        setSaving(true);
+        setAlert(null);
+
+        try {
+            const updatePromises = filteredItems.map(async (item) => {
+                const actual = actualQuantities[item.id] ?? item.quantity;
+                if (actual === item.quantity) return;
+
+                if (item.location_type === "warehouse") {
+                    await api.updateWarehouseItem(item.id, { quantity: actual });
+                } else {
+                    await api.updateStorageItem(item.id, { quantity: actual });
+                }
+            });
+
+            await Promise.all(updatePromises);
+
+            setAlert({
+                type: "success",
+                message: `Инвентаризация завершена: ${pendingChangesCount} изменений сохранено`,
+            });
+
+            generatePDFReport();
+        } catch (err: any) {
+            setAlert({
+                type: "danger",
+                message: err.response?.data?.detail || "Ошибка при сохранении",
+            });
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const generatePDFReport = async () => {
+        const doc = await getPdfDoc();
+        let y = 20;
+
+        doc.setFontSize(18);
+        doc.text("Отчёт по инвентаризации", 14, y);
+        y += 10;
+        doc.setFontSize(11);
+        doc.text(`Дата: ${new Date().toLocaleDateString("ru-RU")}`, 14, y);
+        y += 15;
+
+        // Разделяем на три группы
+        const empty: typeof filteredItems = [];
+        const match: typeof filteredItems = [];
+        const mismatch: typeof filteredItems = [];
 
         filteredItems.forEach(item => {
-            const actual = actualQuantities[item.id];
-            const expected = item.quantity;
+            const actual = actualQuantities[item.id] ?? item.quantity;
 
-            if (actual === null || actual === undefined) {
-                report.empty.push(item);
-            } else if (actual === expected) {
-                report.match.push(item);
+            if (actualQuantities[item.id] === undefined) {
+                empty.push(item);
+            } else if (actual === item.quantity) {
+                match.push(item);
             } else {
-                report.mismatch.push({item, oldQty: expected, actualQty: actual});
+                mismatch.push(item);
             }
         });
 
-        generatePDFReport(report);
-        onHide();
-    };
+        const renderSection = (
+            title: string,
+            data: typeof filteredItems,
+            color: [number, number, number]
+        ) => {
+            if (data.length === 0) return;
 
-    const generatePDFReport = async (data: InventoryReportData) => {
-        const doc = await getPdfDoc();
-        let currentY = 10;
-        doc.text("Отчет инвентаризации", 10, currentY);
-        currentY += 10;
-        const renderTable = (title: string, items: InventoryItem[], head: string[], getRow: (item: InventoryItem) => any[]) => {
-            if (!items.length) return;
-            doc.text(title, 10, currentY);
-            currentY += 5;
+            doc.setFontSize(14);
+            doc.setTextColor(...color);
+            doc.text(title, 14, y);
+            y += 8;
+
+            const tableBody = data.map(item => {
+                const actual = actualQuantities[item.id] ?? item.quantity;
+                const diff = actual - item.quantity;
+
+                return [
+                    item.product.brand || "-",
+                    item.product.model || "-",
+                    item.location_type === "warehouse" ? "Склад" : "Хранение",
+                    `${item.rack}-${item.shelf}-${item.cell}`,
+                    item.quantity.toString(),
+                    actual.toString(),
+                    diff === 0 ? "OK" : diff > 0 ? `+${diff}` : diff.toString(),
+                ];
+            });
 
             autoTable(doc, {
-                startY: currentY,
-                head: [head],
-                body: items.map(getRow),
-                theme: "grid",
+                head: [["Бренд", "Модель", "Локация", "Адрес", "Учтено", "Факт", "Разница"]],
+                body: tableBody,
+                startY: y,
+                theme: "striped",
                 styles: {
                     font: "Roboto",
                     fontStyle: "normal",
@@ -82,7 +188,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({show, onHide, ite
                 },
                 headStyles: {
                     font: "Roboto",
-                    fontStyle: "normal"
+                    fontStyle: "normal",
+                    fillColor: color
                 },
                 bodyStyles: {
                     font: "Roboto",
@@ -90,120 +197,119 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({show, onHide, ite
                 }
             });
 
-
-            currentY = (doc as any).lastAutoTable.finalY + 10;
+            y = (doc as any).lastAutoTable.finalY + 15;
         };
 
+        renderSection("НЕЗАПОЛНЕННЫЕ ЗНАЧЕНИЯ", empty, [255, 100, 100]);
+        renderSection("СОВПАДАЮЩИЕ С НАЛИЧИЕМ", match, [100, 200, 100]);
+        renderSection("НЕ СОВПАДАЮЩИЕ С НАЛИЧИЕМ", mismatch, [255, 165, 0]);
 
-        renderTable(
-            "Не заполненные значения",
-            data.empty,
-            ["ID", "Бренд", "Модель", "Адрес", "Учтено"],
-            item => [
-                item.id,
-                item.brand,
-                item.model,
-                `${item.shelf}-${item.cell}`,
-                item.quantity ?? "-"
-            ]
-        );
-
-
-        renderTable(
-            "Совпавшие с наличием",
-            data.match,
-            ["ID", "Бренд", "Модель", "Адрес", "Учтено", "Фактическое"],
-            item => [
-                item.id,
-                item.brand,
-                item.model,
-                `${item.shelf}-${item.cell}`,
-                item.quantity ?? 0,
-                item.actualQuantity ?? 0
-            ]
-        );
-
-
-        renderTable(
-            "Не совпавшие с наличием",
-            data.mismatch,
-            ["ID", "Бренд", "Модель", "Адрес", "Учтено", "Фактическое"],
-            item => [
-                item.id,
-                item.brand,
-                item.model,
-                `${item.shelf}-${item.cell}`,
-                item.quantity ?? 0,
-                item.actualQuantity ?? 0
-            ]
-        );
-
-        doc.save("inventory_report.pdf");
+        doc.save(`инвентаризация_${new Date().toISOString().slice(0, 10)}.pdf`);
+        onHide();
     };
 
-
     return (
-        <Modal show={show} onHide={onHide} size="xl">
-            <Modal.Header closeButton>
-                <Modal.Title>Инвентаризация</Modal.Title>
-            </Modal.Header>
-            <Modal.Body style={{maxHeight: "70vh", overflowY: "auto"}}>
-                <Row className="mb-3">
-                    <Col md={3}>
-                        <Form.Label>Фильтр по локации</Form.Label>
-                        <Form.Select value={locationFilter} onChange={e => setLocationFilter(e.target.value as any)}>
-                            <option value="">Все</option>
-                            <option value="warehouse">Склад</option>
-                            <option value="storage">Хранение</option>
-                        </Form.Select>
-                    </Col>
-                    <Col md={3}>
-                        <Form.Label>Фильтр по категории</Form.Label>
-                        <Form.Select value={categoryFilter} onChange={e => setCategoryFilter(e.target.value)}>
-                            <option value="">Все</option>
-                            {Object.values(CategoryEnum).map(c => (
-                                <option key={c} value={c}>{c}</option>
-                            ))}
-                        </Form.Select>
-                    </Col>
-                </Row>
+        <>
+            <Modal show={show} onHide={onHide} size="xl" fullscreen="xl-down">
+                <Modal.Header closeButton>
+                    <Modal.Title>Инвентаризация</Modal.Title>
+                </Modal.Header>
 
-                <Table striped bordered hover variant="dark">
-                    <thead>
-                    <tr>
-                        <th>Бренд</th>
-                        <th>Модель</th>
-                        <th>Текущее количество</th>
-                        <th>Фактическое количество</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {filteredItems.map(item => (
-                        <tr key={item.id}>
-                            <td>{item.product.brand}</td>
-                            <td>{item.product.model}</td>
-                            <td>{item.quantity}</td>
-                            <td>
-                                <Form.Control
-                                    type="number"
-                                    min={0}
-                                    value={actualQuantities[item.id] ?? ""}
-                                    onChange={e => handleChange(item.id, e.target.value)}
-                                />
-                            </td>
+                <Modal.Body style={{ maxHeight: "75vh", overflowY: "auto" }}>
+                    {alert && (
+                        <Alert variant={alert.type} onClose={() => setAlert(null)} dismissible>
+                            {alert.message}
+                        </Alert>
+                    )}
+
+                    <Row className="mb-4">
+                        <Col md={4}>
+                            <Form.Label>Локация</Form.Label>
+                            <Form.Select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value as any)}>
+                                <option value="">Все</option>
+                                <option value="warehouse">Склад</option>
+                                <option value="storage">Хранение</option>
+                            </Form.Select>
+                        </Col>
+                    </Row>
+
+                    <Table striped bordered hover className="table-dark">
+                        <thead>
+                        <tr>
+                            <th>Бренд</th>
+                            <th>Модель</th>
+                            <th>Локация</th>
+                            <th>Адрес</th>
+                            <th>Учтено</th>
+                            <th>Фактическое количество</th>
                         </tr>
-                    ))}
-                    </tbody>
-                </Table>
-            </Modal.Body>
-            <Modal.Footer>
-                <Button variant="secondary" onClick={onHide}>
-                    Отмена
-                </Button>
-                <Button variant="primary" onClick={handleSave}>
-                    Сохранить и сформировать отчет
-                </Button>
-            </Modal.Footer>
-        </Modal>
+                        </thead>
+                        <tbody>
+                        {filteredItems.map((item) => {
+                            const id = item.id;
+                            const actual = actualQuantities[id] ?? item.quantity;
+                            const isEmpty = actualQuantities[id] === undefined;
+                            if (!isEmpty) {
+                                console.log(1);
+                            }
+                            const diff = actual - item.quantity;
+
+                            return (
+                                <tr key={id} className={isEmpty ? "table-warning" : diff !== 0 ? "table-info" : ""}>
+                                    <td>{item.product.brand || "-"}</td>
+                                    <td>{item.product.model || "-"}</td>
+                                    <td>{item.location_type === "warehouse" ? "Склад" : "Хранение"}</td>
+                                    <td><code>{item.rack}-{item.shelf}-{item.cell}</code></td>
+                                    <td className="text-center">{item.quantity}</td>
+                                    <td>
+                                        <Form.Control
+                                            type="number"
+                                            min={0}
+                                            placeholder={isEmpty ? "Не заполнено" : undefined}
+                                            defaultValue={isEmpty ? "" : item.quantity}
+                                            onChange={(e) => handleChange(id, e.target.value)}
+                                            className={diff !== 0 ? "border-warning" : ""}
+                                        />
+                                        {diff !== 0 && (
+                                            <small className={diff > 0 ? "text-success" : "text-danger"}>
+                                                {diff > 0 ? "+" : ""}{diff}
+                                            </small>
+                                        )}
+                                    </td>
+                                </tr>
+                            );
+                        })}
+                        </tbody>
+                    </Table>
+                </Modal.Body>
+
+                <Modal.Footer>
+                    <Button variant="secondary" onClick={onHide} disabled={saving}>
+                        Отмена
+                    </Button>
+                    <Button
+                        variant="primary"
+                        onClick={handleSaveAndGenerate}
+                        disabled={saving}
+                    >
+                        {saving ? (
+                            <>
+                                <Spinner animation="border" size="sm" className="me-2" />
+                                Сохранение...
+                            </>
+                        ) : (
+                            "Сохранить и скачать отчёт"
+                        )}
+                    </Button>
+                </Modal.Footer>
+            </Modal>
+
+            <ConfirmInventoryModal
+                show={showConfirmModal}
+                changesCount={pendingChangesCount}
+                onConfirm={confirmAndProceed}
+                onCancel={() => setShowConfirmModal(false)}
+            />
+        </>
     );
 };

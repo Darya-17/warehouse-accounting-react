@@ -331,7 +331,6 @@ export const PurchasePage = () => {
             )}
 
             <Row className="g-3 mb-4 align-items-end">
-                {
                 <Col md={4}>
                     <Form.Label>Поиск товара</Form.Label>
                     <InputGroup>
