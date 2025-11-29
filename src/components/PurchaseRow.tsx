@@ -1,9 +1,8 @@
-
 import {ChangeEvent} from "react";
 import {Button, Form, Badge} from "react-bootstrap";
 import type {PurchaseItem} from "../types";
 
-type Props = {
+type PurchaseRowProps = {
     row: PurchaseItem;
     updateRow: (id: number, data: Partial<PurchaseItem>) => void;
     deleteRow: (id: number) => void;
@@ -18,9 +17,12 @@ const getSeasonLabel = (
 }
 const dash = <span className="text-muted">—</span>;
 
-export const PurchaseRow = ({row, updateRow, deleteRow, season}: Props) => {
+export const PurchaseRow = ({row, updateRow, deleteRow}: PurchaseRowProps) => {
     const handleChange = (field: keyof PurchaseItem) => (e: ChangeEvent<any>) => {
-        const value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+        let value = e.target.type === "checkbox" ? e.target.checked : e.target.value;
+        if (e.target.type === "number") {
+            value = Number(value);
+        }
         updateRow(row.id, {[field]: value});
     };
 
@@ -29,7 +31,8 @@ export const PurchaseRow = ({row, updateRow, deleteRow, season}: Props) => {
     return (
         <tr>
             <td>
-                <Badge bg={isTire ? "info" : "secondary"}>{isTire ? `${getSeasonLabel(season)} шины` : "Комплект"}</Badge>
+                <Badge
+                    bg={isTire ? "info" : "secondary"}>{isTire ? `${getSeasonLabel(row.season)} шины` : "Комплект"}</Badge>
             </td>
 
             <td><Form.Control value={row.brand} onChange={handleChange("brand")}/></td>

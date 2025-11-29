@@ -151,7 +151,6 @@ export const StockPage: React.FC = () => {
         });
         doc.save("pricelist.pdf");
     };
-
     const generateTurnoverReportPDF = async (items: InventoryItem[], startDate: any, endDate: any) => {
         const doc = await getPdfDoc();
         const tableData = items.map((item) => [
@@ -164,7 +163,6 @@ export const StockPage: React.FC = () => {
 
         const days =
             (new Date(endDate).getTime() - new Date(startDate).getTime()) / 86400000;
-
         const rows = items.map(item => {
             const sales = item.sales ?? 0;
             const stock = item.quantity ?? 0;
@@ -188,12 +186,20 @@ export const StockPage: React.FC = () => {
             startY: 20,
             head: [["ID", "Бренд", "Модель", "Остаток", "Продажи", "Средн. остаток", "Оборач.", "DSI"]],
             body: rows,
-
-            styles: {font: "Roboto", fontSize: 8},
-            headStyles: {font: "Roboto", fontStyle: "bold"},
-            bodyStyles: {font: "Roboto"}
+            styles: {
+                font: "Roboto",
+                fontStyle: "normal",
+                fontSize: 8
+            },
+            headStyles: {
+                font: "Roboto",
+                fontStyle: "normal"
+            },
+            bodyStyles: {
+                font: "Roboto",
+                fontStyle: "normal"
+            },
         });
-
         doc.save("turnover_report.pdf");
     };
     const [showTurnover, setShowTurnover] = useState(false);

@@ -1,6 +1,4 @@
-
-
-import { useState, useEffect, useMemo, useRef } from "react";
+import {useState, useEffect, useMemo, useRef} from "react";
 import {
     Button,
     Table,
@@ -13,9 +11,9 @@ import {
     FormControl,
     Badge,
 } from "react-bootstrap";
-import { PurchaseRow } from "../components/PurchaseRow.tsx";
+import {PurchaseRow} from "../components/PurchaseRow.tsx";
 import * as api from "../apiService.ts";
-import type { PurchaseItem } from "../types";
+import type {PurchaseItem} from "../types";
 import * as XLSX from "xlsx";
 
 
@@ -25,7 +23,7 @@ const ConfirmSaveModal: React.FC<{
     count: number;
     onConfirm: () => void;
     onCancel: () => void;
-}> = ({ show, date, count, onConfirm, onCancel }) => (
+}> = ({show, date, count, onConfirm, onCancel}) => (
     <>
         <Modal show={show} onHide={onCancel} centered backdrop="static">
             <Modal.Header closeButton>
@@ -59,17 +57,17 @@ export const PurchasePage = () => {
 
 
     const nextIdRef = useRef(1);
-
+    const fetch = async () => {
+        try {
+            const res = await api.getAllProducts();
+            setExistingProducts(res.data || []);
+        } catch (err) {
+            setAlert({type: "danger", message: "Не удалось загрузить товары"});
+        }
+    };
 
     useEffect(() => {
-        const fetch = async () => {
-            try {
-                const res = await api.getAllProducts();
-                setExistingProducts(res.data || []);
-            } catch (err) {
-                setAlert({ type: "danger", message: "Не удалось загрузить товары" });
-            }
-        };
+
         fetch();
     }, []);
 
@@ -88,7 +86,7 @@ export const PurchasePage = () => {
             ...prev,
             {
                 id: nextIdRef.current++,
-                type: "tire",
+                type: section == 'components' ? 'component' : 'tire',
                 brand: "",
                 model: "",
                 width: "",
@@ -96,6 +94,7 @@ export const PurchasePage = () => {
                 diameter: "",
                 index: "",
                 spikes: "",
+                season: section != 'components' ? section : undefined,
                 year: new Date().getFullYear(),
                 country: "",
                 category: "",
@@ -117,7 +116,7 @@ export const PurchasePage = () => {
         setRows((prev) => [
             ...prev,
             {
-                id: nextIdRef.current++,
+                id: (product.component && product.component.id) | (product.tire && product.tire.id),
                 type: isTire ? "tire" : "component",
                 existingProductId: product.id,
                 brand: product.brand || "",
@@ -138,6 +137,9 @@ export const PurchasePage = () => {
                 price: product.price || 0,
                 quantity: product.warehouse_qty,
                 note: product.note || "",
+                location: product.location,
+                warehouse_id: product.warehouse_id,
+                storage_id: product.storage_id
             },
         ]);
         setSearchQuery("");
@@ -145,7 +147,7 @@ export const PurchasePage = () => {
     };
 
     const updateRow = (id: number, data: Partial<PurchaseItem>) => {
-        setRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...data } : r)));
+        setRows((prev) => prev.map((r) => (r.id === id ? {...r, ...data} : r)));
     };
 
     const deleteRow = (id: number) => {
@@ -160,12 +162,12 @@ export const PurchasePage = () => {
         try {
             const newRows: PurchaseItem[] = [];
             const data = await file.arrayBuffer();
-            const workbook = XLSX.read(data, { type: "array" });
+            const workbook = XLSX.read(data, {type: "array"});
             const sheet = workbook.Sheets[workbook.SheetNames[0]];
-            const json = XLSX.utils.sheet_to_json<any>(sheet, { header: 1, defval: "" });
+            const json = XLSX.utils.sheet_to_json<any>(sheet, {header: 1, defval: ""});
 
             if (json.length < 2) {
-                setAlert({ type: "danger", message: "Файл пустой" });
+                setAlert({type: "danger", message: "Файл пустой"});
                 return;
             }
 
@@ -224,6 +226,7 @@ export const PurchasePage = () => {
                         quantity,
                         note: get(row, ["заметка", "note"]),
                         category: "", parameters: "", compatibility: "", weight: 0, material: "", color: "",
+
                     });
                 } else {
                     newRows.push({
@@ -240,16 +243,22 @@ export const PurchasePage = () => {
                         price: price || 0,
                         quantity,
                         note: get(row, ["заметка", "note"]),
-                        width: "", profile: "", diameter: "", index: "", spikes: "", year: new Date().getFullYear(), country: "",
+                        width: "",
+                        profile: "",
+                        diameter: "",
+                        index: "",
+                        spikes: "",
+                        year: new Date().getFullYear(),
+                        country: "",
                     });
                 }
             }
 
             setRows((prev) => [...prev, ...newRows]);
-            setAlert({ type: "success", message: `Загружено ${newRows.length} позиций из файла` });
+            setAlert({type: "success", message: `Загружено ${newRows.length} позиций из файла`});
             e.target.value = "";
         } catch (err) {
-            setAlert({ type: "danger", message: "Ошибка чтения файла" });
+            setAlert({type: "danger", message: "Ошибка чтения файла"});
         }
     };
 
@@ -263,16 +272,17 @@ export const PurchasePage = () => {
         try {
             for (const row of rows) {
                 let productId: number;
-
                 if (row.existingProductId) {
                     productId = row.existingProductId;
                     if (row.type == "tire") {
-                        await api.updateTire(productId, row);
-
+                        await api.updateTire(row.id, row);
                     } else {
-                        await api.updateComponent(productId, row);
+                        await api.updateComponent(row.id, row);
                     }
-                    await api.updateWarehouseItem(productId, row);
+                    if (row.location === 'склад, хранение' || row.location === 'склад')
+                        await api.updateWarehouseItem(row.warehouse_id, row);
+                    else
+                        await api.addProductToWarehouse(productId, row.quantity);
 
                 } else {
                     const prodRes = await api.createProduct({
@@ -297,7 +307,7 @@ export const PurchasePage = () => {
                     } else {
                         await api.createComponent({
                             product_id: productId,
-                            category: row.category || "other",
+                            category: row.category || undefined,
                             parameters: row.parameters || "",
                             compatibility: row.compatibility || "",
                             weight: row.weight,
@@ -307,15 +317,15 @@ export const PurchasePage = () => {
                     }
                     await api.addProductToWarehouse(productId, row.quantity);
                 }
-
             }
-
             setAlert({type: "success", message: `Закупка успешно сохранена (${rows.length})`});
             setRows([]);
+            fetch();
         } catch (err: any) {
+            const msg = err.response?.data?.detail[0].msg == 'Field required' ? 'Отсутсвуют необходимые поля' : err.response?.data?.detail[0].msg;
             setAlert({
                 type: "danger",
-                message: err.response?.data?.detail || "Ошибка при сохранении",
+                message: msg || "Ошибка при сохранении",
             });
         }
     };
@@ -343,19 +353,31 @@ export const PurchasePage = () => {
                             }}
                         />
                         {searchQuery && (
-                            <Button variant="outline-secondary" onClick={() => { setSearchQuery(""); setShowSearchResults(false); }}>
+                            <Button variant="outline-secondary" onClick={() => {
+                                setSearchQuery("");
+                                setShowSearchResults(false);
+                            }}>
                                 ×
                             </Button>
                         )}
                     </InputGroup>
 
                     {showSearchResults && filteredProducts.length > 0 && (
-                        <div className="border bg-white rounded shadow mt-1" style={{ maxHeight: "300px", overflowY: "auto", position: "absolute", zIndex: 1000, width: "32%" }}>
+                        <div className="border bg-white rounded shadow mt-1" style={{
+                            maxHeight: "300px",
+                            overflowY: "auto",
+                            position: "absolute",
+                            zIndex: 1000,
+                            width: "32%"
+                        }}>
                             {filteredProducts.map((p) => (
-                                <div key={p.id} className="p-2 border-bottom cursor-pointer hover-bg-light bg-dark" onClick={() => addExistingProduct(p)}>
+                                <div key={p.id} className="p-2 border-bottom cursor-pointer hover-bg-light bg-dark"
+                                     onClick={() => addExistingProduct(p)}>
                                     <strong>{p.brand} {p.model}</strong>
-                                    {p.tire && <Badge bg="info" className="ms-2">{p.tire.width}/{p.tire.profile} R{p.tire.diameter}</Badge>}
-                                    {p.component && <Badge bg="secondary" className="ms-2">{p.component.category}</Badge>}
+                                    {p.tire && <Badge bg="info"
+                                                      className="ms-2">{p.tire.width}/{p.tire.profile} R{p.tire.diameter}</Badge>}
+                                    {p.component &&
+                                        <Badge bg="secondary" className="ms-2">{p.component.category}</Badge>}
                                     <small className="text-muted d-block">ID: {p.id} • {p.price || "?"} ₽</small>
                                 </div>
                             ))}
@@ -374,12 +396,12 @@ export const PurchasePage = () => {
 
                 <Col md={2}>
                     <Form.Label>Дата закупки</Form.Label>
-                    <Form.Control type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                    <Form.Control type="date" value={date} onChange={(e) => setDate(e.target.value)}/>
                 </Col>
 
                 <Col md={3}>
                     <Form.Label>Загрузить накладную</Form.Label>
-                    <Form.Control type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileUpload} />
+                    <Form.Control type="file" accept=".xlsx,.xls,.csv,.txt" onChange={handleFileUpload}/>
                 </Col>
 
                 <Col md={3}>

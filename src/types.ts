@@ -1,4 +1,3 @@
-
 export enum SectionEnum {
     STORAGE = "storage",
     WINTER = "winter",
@@ -126,6 +125,7 @@ export interface OrderItem extends Base {
     price?: number;
     product?: Product;
 }
+
 export type PurchaseItem = {
     id: number;
     type: "tire" | "component";
@@ -141,14 +141,18 @@ export type PurchaseItem = {
     spikes?: string;
     year?: number;
     country?: string;
-
+    season: 'winter' | 'summer';
     category?: string;
     parameters?: string;
     compatibility?: string;
     weight?: number;
     material?: string;
     color?: string;
+    location: string;
+    warehouse_id: number,
+    storage_id: number
 };
+
 export interface InventoryItem {
     id: number;
     location_type: "warehouse" | "storage";

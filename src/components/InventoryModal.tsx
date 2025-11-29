@@ -1,6 +1,6 @@
 // src/components/InventoryModal.tsx
 
-import React, { useState, useMemo } from "react";
+import React, {useState, useMemo} from "react";
 import {
     Modal,
     Button,
@@ -11,9 +11,9 @@ import {
     Alert,
     Spinner,
 } from "react-bootstrap";
-import { InventoryItem } from "../types";
+import {InventoryItem, PurchaseItem} from "../types";
 import autoTable from "jspdf-autotable";
-import { getPdfDoc } from "../utils.ts";
+import {getPdfDoc} from "../utils.ts";
 import * as api from "../apiService.ts";
 
 // Модалка подтверждения
@@ -22,7 +22,7 @@ const ConfirmInventoryModal: React.FC<{
     changesCount: number;
     onConfirm: () => void;
     onCancel: () => void;
-}> = ({ show, changesCount, onConfirm, onCancel }) => (
+}> = ({show, changesCount, onConfirm, onCancel}) => (
     <Modal show={show} onHide={onCancel} centered backdrop="static">
         <Modal.Header closeButton>
             <Modal.Title>Подтверждение инвентаризации</Modal.Title>
@@ -33,7 +33,7 @@ const ConfirmInventoryModal: React.FC<{
             ) : (
                 <p>
                     Будет обновлено <strong>{changesCount}</strong> позиций на складе.
-                    <br />
+                    <br/>
                     Это действие нельзя отменить.
                 </p>
             )}
@@ -53,8 +53,8 @@ type InventoryModalProps = {
     items: InventoryItem[];
 };
 
-export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, items }) => {
-    const [actualQuantities, setActualQuantities] = useState<Record<number, number>>({});
+export const InventoryModal: React.FC<InventoryModalProps> = ({show, onHide, items}) => {
+    const [actualQuantities, setActualQuantities] = useState<Record<string, number>>({});
     const [locationFilter, setLocationFilter] = useState<"warehouse" | "storage" | "">("");
     const [saving, setSaving] = useState(false);
     const [alert, setAlert] = useState<{ type: "success" | "danger"; message: string } | null>(null);
@@ -78,7 +78,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
 
     const handleSaveAndGenerate = () => {
         const changes = filteredItems.filter(item => {
-            const actual = actualQuantities[item.id] ?? item.quantity;
+            const actual = actualQuantities[generateId(item)] ?? item.quantity;
             return actual !== item.quantity;
         });
 
@@ -93,23 +93,20 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
 
         try {
             const updatePromises = filteredItems.map(async (item) => {
-                const actual = actualQuantities[item.id] ?? item.quantity;
+                const actual = actualQuantities[generateId(item)] ?? item.quantity;
                 if (actual === item.quantity) return;
 
                 if (item.location_type === "warehouse") {
-                    await api.updateWarehouseItem(item.id, { quantity: actual });
+                    await api.updateWarehouseItem(item.id, {quantity: actual});
                 } else {
-                    await api.updateStorageItem(item.id, { quantity: actual });
+                    await api.updateStorageItem(item.id, {quantity: actual});
                 }
             });
-
             await Promise.all(updatePromises);
-
             setAlert({
                 type: "success",
                 message: `Инвентаризация завершена: ${pendingChangesCount} изменений сохранено`,
             });
-
             generatePDFReport();
         } catch (err: any) {
             setAlert({
@@ -138,9 +135,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
         const mismatch: typeof filteredItems = [];
 
         filteredItems.forEach(item => {
-            const actual = actualQuantities[item.id] ?? item.quantity;
+            const actual = actualQuantities[generateId(item)] ?? item.quantity;
 
-            if (actualQuantities[item.id] === undefined) {
+            if (actualQuantities[generateId(item)] === undefined) {
                 empty.push(item);
             } else if (actual === item.quantity) {
                 match.push(item);
@@ -162,7 +159,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
             y += 8;
 
             const tableBody = data.map(item => {
-                const actual = actualQuantities[item.id] ?? item.quantity;
+                const actual = actualQuantities[generateId(item)] ?? item.quantity;
                 const diff = actual - item.quantity;
 
                 return [
@@ -207,7 +204,9 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
         doc.save(`инвентаризация_${new Date().toISOString().slice(0, 10)}.pdf`);
         onHide();
     };
-
+    const generateId = (item: PurchaseItem) => {
+        return `${item.product.id}-${item.id}`;
+    }
     return (
         <>
             <Modal show={show} onHide={onHide} size="xl" fullscreen="xl-down">
@@ -215,7 +214,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
                     <Modal.Title>Инвентаризация</Modal.Title>
                 </Modal.Header>
 
-                <Modal.Body style={{ maxHeight: "75vh", overflowY: "auto" }}>
+                <Modal.Body style={{maxHeight: "75vh", overflowY: "auto"}}>
                     {alert && (
                         <Alert variant={alert.type} onClose={() => setAlert(null)} dismissible>
                             {alert.message}
@@ -225,7 +224,8 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
                     <Row className="mb-4">
                         <Col md={4}>
                             <Form.Label>Локация</Form.Label>
-                            <Form.Select value={locationFilter} onChange={(e) => setLocationFilter(e.target.value as any)}>
+                            <Form.Select value={locationFilter}
+                                         onChange={(e) => setLocationFilter(e.target.value as any)}>
                                 <option value="">Все</option>
                                 <option value="warehouse">Склад</option>
                                 <option value="storage">Хранение</option>
@@ -246,20 +246,17 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
                         </thead>
                         <tbody>
                         {filteredItems.map((item) => {
-                            const id = item.id;
+                            const id = generateId(item);
                             const actual = actualQuantities[id] ?? item.quantity;
                             const isEmpty = actualQuantities[id] === undefined;
-                            if (!isEmpty) {
-                                console.log(1);
-                            }
                             const diff = actual - item.quantity;
 
                             return (
-                                <tr key={id} className={isEmpty ? "table-warning" : diff !== 0 ? "table-info" : ""}>
+                                <tr key={id} className={isEmpty ? "table" : diff !== 0 ? "table-info" : ""}>
                                     <td>{item.product.brand || "-"}</td>
                                     <td>{item.product.model || "-"}</td>
                                     <td>{item.location_type === "warehouse" ? "Склад" : "Хранение"}</td>
-                                    <td><code>{item.rack}-{item.shelf}-{item.cell}</code></td>
+                                    <td>{item.rack}-{item.shelf}-{item.cell}</td>
                                     <td className="text-center">{item.quantity}</td>
                                     <td>
                                         <Form.Control
@@ -294,7 +291,7 @@ export const InventoryModal: React.FC<InventoryModalProps> = ({ show, onHide, it
                     >
                         {saving ? (
                             <>
-                                <Spinner animation="border" size="sm" className="me-2" />
+                                <Spinner animation="border" size="sm" className="me-2"/>
                                 Сохранение...
                             </>
                         ) : (
