@@ -206,6 +206,7 @@ export const PurchasePage = () => {
                 const width = get(row, ["ширина", "width"]);
                 const diameter = get(row, ["диаметр", "diameter", "r"]);
                 const profile = get(row, ["профиль", "profile"]);
+                const season = get(row, ["сезон", "Сезон", "season"]);
 
                 const isTire = width || diameter || profile;
 
@@ -224,6 +225,7 @@ export const PurchasePage = () => {
                         country: get(row, ["страна", "country"]),
                         price: price || 0,
                         quantity,
+                        season: ['зимняя','winter'].includes(season) ? 'winter': 'summer',
                         note: get(row, ["заметка", "note"]),
                         category: "", parameters: "", compatibility: "", weight: 0, material: "", color: "",
 
@@ -301,8 +303,8 @@ export const PurchasePage = () => {
                             index: row.index || null,
                             spikes: row.spikes || null,
                             year: row.year,
+                            season: row.season,
                             country: row.country || null,
-                            season: section === "winter" ? "winter" : "summer",
                         });
                     } else {
                         await api.createComponent({
